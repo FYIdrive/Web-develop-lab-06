@@ -5,6 +5,8 @@ const OMDB_API_KEY = 'd6b40981';
 
 function App() {
   const [query, setQuery] = useState('');
+  const [yearFrom, setYearFrom] = useState('');
+  const [yearTo, setYearTo] = useState('');
   const [movies, setMovies] = useState([]);
   const [page, setPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
@@ -175,6 +177,18 @@ function App() {
   };
 
   const maxPage = Math.min(100, Math.ceil(totalResults / 10));
+  const yearRangeInvalid =
+    yearFrom !== '' && yearTo !== '' && Number(yearFrom) > Number(yearTo);
+  const filteredMovies = movies.filter((movie) => {
+    const year = Number.parseInt(movie.Year, 10);
+
+    return (
+      Number.isFinite(year) &&
+      !yearRangeInvalid &&
+      (yearFrom === '' || year >= Number(yearFrom)) &&
+      (yearTo === '' || year <= Number(yearTo))
+    );
+  });
 
   return (
     <main className="app">
@@ -194,6 +208,31 @@ function App() {
         </button>
       </div>
 
+      <div className="year-filter" aria-label="Фильтр по году">
+        <label>
+          Год от
+          <input
+            type="number"
+            min="1888"
+            max="2100"
+            value={yearFrom}
+            onChange={(e) => setYearFrom(e.target.value)}
+            placeholder="Например, 1990"
+          />
+        </label>
+        <label>
+          Год до
+          <input
+            type="number"
+            min="1888"
+            max="2100"
+            value={yearTo}
+            onChange={(e) => setYearTo(e.target.value)}
+            placeholder="Например, 2020"
+          />
+        </label>
+      </div>
+
       {status === 'idle' && (
         <p className="empty-state">Введите название фильма и нажмите «Найти».</p>
       )}
@@ -206,22 +245,30 @@ function App() {
         </div>
       )}
 
+      {status === 'success' && yearRangeInvalid && (
+        <p className="empty-state">Год «от» не может быть больше года «до».</p>
+      )}
+
       {status === 'success' && movies.length === 0 && (
         <p>Ничего не найдено по вашему запросу.</p>
       )}
 
       {status === 'success' && movies.length > 0 && (
         <>
-          <div className="movie-list">
-            {movies.map((movie) => (
-              <MovieCard
-                key={movie.imdbID}
-                movie={movie}
-                details={detailsById[movie.imdbID]}
-                isLoading={loadingIds.has(movie.imdbID)}
-              />
-            ))}
-          </div>
+          {filteredMovies.length > 0 ? (
+            <div className="movie-list">
+              {filteredMovies.map((movie) => (
+                <MovieCard
+                  key={movie.imdbID}
+                  movie={movie}
+                  details={detailsById[movie.imdbID]}
+                  isLoading={loadingIds.has(movie.imdbID)}
+                />
+              ))}
+            </div>
+          ) : !yearRangeInvalid ? (
+            <p className="empty-state">На этой странице нет фильмов за выбранные годы.</p>
+          ) : null}
           <nav className="pagination" aria-label="Страницы результатов">
             <button
               onClick={() => changePage(page - 1)}
