@@ -109,6 +109,32 @@ h1 {
   background: rgba(255, 255, 255, 0.85);
 }
 
+.search-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 24px;
+  font-size: 15px;
+}
+
+.search-history__items {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.search-history__items button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
 .empty-state {
   text-align: center;
 }

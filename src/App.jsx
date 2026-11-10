@@ -2,9 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import MovieCard from './MovieCard';
 
 const OMDB_API_KEY = 'd6b40981';
+const SEARCH_HISTORY_KEY = 'movie-search-history';
+const SEARCH_HISTORY_LIMIT = 5;
+
+function readSearchHistory() {
+  try {
+    const savedHistory = localStorage.getItem(SEARCH_HISTORY_KEY);
+    const parsedHistory = savedHistory ? JSON.parse(savedHistory) : [];
+
+    return Array.isArray(parsedHistory)
+      ? parsedHistory.filter((item) => typeof item === 'string').slice(0, SEARCH_HISTORY_LIMIT)
+      : [];
+  } catch (err) {
+    console.error('Failed to read search history:', err);
+    return [];
+  }
+}
 
 function App() {
   const [query, setQuery] = useState('');
+  const [searchHistory, setSearchHistory] = useState(readSearchHistory);
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
   const [movies, setMovies] = useState([]);
@@ -85,6 +102,13 @@ function App() {
       return;
     }
 
+    setSearchHistory((previousHistory) => [
+      trimmed,
+      ...previousHistory.filter(
+        (previousQuery) => previousQuery.toLocaleLowerCase() !== trimmed.toLocaleLowerCase()
+      ),
+    ].slice(0, SEARCH_HISTORY_LIMIT));
+
     setStatus('loading');
     setError(null);
 
@@ -156,6 +180,14 @@ function App() {
       }
     };
   }, [query, page]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+    } catch (err) {
+      console.error('Failed to save search history:', err);
+    }
+  }, [searchHistory]);
 
   const submitSearch = () => {
     if (searchDebounceRef.current) {
@@ -232,6 +264,26 @@ function App() {
           />
         </label>
       </div>
+
+      {searchHistory.length > 0 && (
+        <section className="search-history" aria-label="Последние запросы">
+          <span>Последние запросы:</span>
+          <div className="search-history__items">
+            {searchHistory.map((historyQuery) => (
+              <button
+                key={historyQuery}
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  setQuery(historyQuery);
+                }}
+              >
+                {historyQuery}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {status === 'idle' && (
         <p className="empty-state">Введите название фильма и нажмите «Найти».</p>
