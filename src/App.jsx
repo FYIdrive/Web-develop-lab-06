@@ -6,6 +6,8 @@ const OMDB_API_KEY = 'd6b40981';
 function App() {
   const [query, setQuery] = useState('');
   const [movies, setMovies] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
   const [detailsById, setDetailsById] = useState({});
@@ -14,6 +16,7 @@ function App() {
   const detailCacheRef = useRef({});
   const detailLoadingRef = useRef(new Set());
   const searchAbortRef = useRef(null);
+  const searchDebounceRef = useRef(null);
 
   const fetchMovieDetails = async (imdbID) => {
     if (!imdbID || detailCacheRef.current[imdbID] || detailLoadingRef.current.has(imdbID)) {
@@ -62,7 +65,7 @@ function App() {
     }
   };
 
-  const fetchMovies = async (currentQuery) => {
+  const fetchMovies = async (currentQuery, currentPage) => {
     const trimmed = currentQuery.trim();
 
     if (searchAbortRef.current) {
@@ -74,6 +77,7 @@ function App() {
 
     if (!trimmed) {
       setMovies([]);
+      setTotalResults(0);
       setStatus('idle');
       setError(null);
       return;
@@ -84,7 +88,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `https://www.omdbapi.com/?s=${encodeURIComponent(trimmed)}&apikey=${OMDB_API_KEY}`,
+        `https://www.omdbapi.com/?s=${encodeURIComponent(trimmed)}&page=${currentPage}&apikey=${OMDB_API_KEY}`,
         { signal: controller.signal }
       );
 
@@ -100,6 +104,7 @@ function App() {
 
       if (data.Error) {
         setMovies([]);
+        setTotalResults(0);
         setStatus('error');
         setError('Ничего не найдено');
         return;
@@ -107,6 +112,7 @@ function App() {
 
       const resultMovies = data.Search || [];
       setMovies(resultMovies);
+      setTotalResults(Number(data.totalResults) || 0);
       setStatus('success');
 
       resultMovies.forEach((movie) => {
@@ -126,23 +132,49 @@ function App() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    searchDebounceRef.current = setTimeout(() => {
+      searchDebounceRef.current = null;
       if (query.trim().length > 2) {
-        fetchMovies(query);
+        fetchMovies(query, page);
       } else {
         setMovies([]);
+        setTotalResults(0);
         setStatus('idle');
         setError(null);
       }
     }, 500);
 
     return () => {
-      clearTimeout(timer);
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
       if (searchAbortRef.current) {
         searchAbortRef.current.abort();
       }
     };
-  }, [query]);
+  }, [query, page]);
+
+  const submitSearch = () => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+
+    if (page !== 1) {
+      setPage(1);
+      return;
+    }
+
+    fetchMovies(query, 1);
+  };
+
+  const changePage = (nextPage) => {
+    setPage(nextPage);
+    setStatus('loading');
+  };
+
+  const maxPage = Math.min(100, Math.ceil(totalResults / 10));
 
   return (
     <main className="app">
@@ -151,10 +183,13 @@ function App() {
       <div className="search-panel">
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
           placeholder="Введите название фильма"
         />
-        <button onClick={() => fetchMovies(query)} disabled={status === 'loading'}>
+        <button onClick={submitSearch} disabled={status === 'loading'}>
           Найти
         </button>
       </div>
@@ -176,20 +211,36 @@ function App() {
       )}
 
       {status === 'success' && movies.length > 0 && (
-        <div className="movie-list">
-          {movies.map((movie) => (
-            <MovieCard
-              key={movie.imdbID}
-              movie={movie}
-              details={detailsById[movie.imdbID]}
-              isLoading={loadingIds.has(movie.imdbID)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="movie-list">
+            {movies.map((movie) => (
+              <MovieCard
+                key={movie.imdbID}
+                movie={movie}
+                details={detailsById[movie.imdbID]}
+                isLoading={loadingIds.has(movie.imdbID)}
+              />
+            ))}
+          </div>
+          <nav className="pagination" aria-label="Страницы результатов">
+            <button
+              onClick={() => changePage(page - 1)}
+              disabled={page <= 1 || status === 'loading'}
+            >
+              Предыдущая страница
+            </button>
+            <span>Страница {page} из {maxPage}</span>
+            <button
+              onClick={() => changePage(page + 1)}
+              disabled={page >= maxPage || status === 'loading'}
+            >
+              Следующая страница
+            </button>
+          </nav>
+        </>
       )}
     </main>
   );
 }
 
 export default App;
-
